@@ -151,7 +151,16 @@ PATH is the root directory of the workspace."
                      (format "Packages: %s" (mapconcat #'identity colcon--selected-packages ", "))))
   :transient t)
 
-(transient-define-suffix colcon--do-build (&optional args)
+(transient-define-suffix colcon--build-suffix (&optional args)
+  "Execute colcon build with the given ARGS."
+  :description "Build"
+  :transient nil
+  (interactive)
+  (if (and colcon--current-workspace colcon--selected-packages)
+      (message "Building packages %s in workspace: %s" (mapconcat 'identity colcon--selected-packages ", ") (plist-get colcon--current-workspace :path))
+    (user-error "No workspace selected")))
+
+(transient-define-suffix colcon--build-suffix (&optional args)
   "Execute colcon build with the given ARGS."
   :description "Build"
   :transient nil
@@ -176,7 +185,7 @@ PATH is the root directory of the workspace."
    ("p" "Packages" colcon--packages-infix)
    ("d" "Dependencies" colcon--packages-selection-infix)]
   ["Actions"
-   ("b" "Build" colcon--do-build)])
+   ("b" "Build" colcon--build-suffix)])
 
 (provide 'colcon)
 ;;; colcon.el ends here
