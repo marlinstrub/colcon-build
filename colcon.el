@@ -151,30 +151,43 @@ PATH is the root directory of the workspace."
                      (format "Packages: %s" (mapconcat #'identity colcon--selected-packages ", "))))
   :transient t)
 
-(transient-define-suffix colcon--build-suffix (&optional args)
-  "Execute colcon build with the given ARGS."
-  :description "Build"
-  :transient nil
-  (interactive)
-  (if (and colcon--current-workspace colcon--selected-packages)
-      (message "Building packages %s in workspace: %s" (mapconcat 'identity colcon--selected-packages ", ") (plist-get colcon--current-workspace :path))
-    (user-error "No workspace selected")))
-
-(transient-define-suffix colcon--build-suffix (&optional args)
-  "Execute colcon build with the given ARGS."
-  :description "Build"
-  :transient nil
-  (interactive)
-  (if colcon--current-workspace
-      (message "Building in workspace: %s" (plist-get colcon--current-workspace :path))
-    (user-error "No workspace selected")))
-
 (transient-define-argument colcon--packages-selection-infix ()
   "docs"
   :class 'transient-switches
   :argument-format "--%s"
   :argument-regexp "\\(--\\(packages-select\\|packages-up-to\\|packages-above\\)\\)"
   :choices '("packages-select" "packages-up-to" "packages-above"))
+
+(defun colcon--parse-package-selection-infix (args)
+  ""
+  (let ((select "--packages-select")
+        (up-to  "--packages-up-to")
+        (above  "--packages-above"))
+    (cond ((transient-arg-value select args) select)
+          ((transient-arg-value up-to args)  up-to)
+          ((transient-arg-value above args)  above)
+          (t ""))))
+
+(transient-define-suffix colcon--build-suffix (&optional args)
+  "Execute colcon build with the given ARGS."
+  :description "Build"
+  :transient nil
+  (interactive)
+  (let* ((default-directory (plist-get colcon--current-workspace :path))
+         (distro-path  (file-name-concat "/opt/ros" (plist-get colcon--current-workspace :distro)))
+         (distro-setup (file-name-concat distro-path "setup.bash"))
+         (packages     (mapconcat 'identity colcon--selected-packages " "))
+         (infix-args   (transient-args transient-current-command))
+         (dependencies (colcon--parse-package-selection-infix infix-args))
+         (colcon-cmd   (concat "source " distro-setup " && "
+                               "colcon build " dependencies " " packages)))
+    (if (and colcon--current-workspace colcon--selected-packages)
+        (progn
+          (message "Command: %s" colcon-cmd)
+          ;; (message "Building packages %s in workspace: %s" (mapconcat 'identity colcon--selected-packages ", ") (plist-get colcon--current-workspace :path))
+          ;; (compile colcon-cmd))
+          )
+    (user-error "No active workspace or no selected packages."))))
 
 (transient-define-prefix colcon-build ()
   "Transient for colcon build command."
