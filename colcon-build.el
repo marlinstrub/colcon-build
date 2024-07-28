@@ -84,12 +84,15 @@ PATH should be the root directory (e.g., / or /docker:dev:/)."
 
 (defcustom colcon-workspaces nil
   "List of known colcon workspaces.
-Each element is a plist with keys :name, :path, and optionally :extends."
+Each element is a plist with keys :name, :path, :distro, and optionally :extends."
   :type '(repeat (plist :key-type symbol :value-type string))
   :group 'colcon)
 
 (defvar colcon--current-workspace nil
   "The currently selected workspace.")
+
+(defvar colcon--selected-packages nil
+  "The selected packages.")
 
 (defun colcon-add-workspace (name path)
   "Add a new workspace to =colcon-workspaces'.
