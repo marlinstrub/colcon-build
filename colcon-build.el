@@ -274,8 +274,7 @@ PATH is the root directory of the workspace."
    ("-o" "Console output" colcon--console-output-infix)]
   ["Actions"
    [("b" "Build" colcon--build-suffix)]
-   [("c" "Clean" colcon--clean-suffix)]
-   [("D" "Debug" tsc-suffix-print-args)]])
+   [("c" "Clean" colcon--clean-suffix)]])
 
 (provide 'colcon-build)
 ;;; colcon.el ends here
