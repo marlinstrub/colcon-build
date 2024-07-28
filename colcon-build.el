@@ -242,6 +242,7 @@ PATH is the root directory of the workspace."
         (colcon--clean-packages colcon--selected-packages)
         (message "Cleaned packages: %s" (mapconcat 'identity colcon--selected-packages " "))))))
 
+;;;###autoload
 (transient-define-prefix colcon-build ()
   "Transient for colcon build command."
   :value '("--packages-select" "--event-handler console_direct+" "--cmake-args -DCMAKE_BUILD_TYPE=Release" "--cmake-args -DGRAVIS_BUILD_TESTS=ON")
