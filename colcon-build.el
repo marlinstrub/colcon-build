@@ -31,15 +31,26 @@
 
 ;;; Code:
 
+(require 'subr-x)
+(require 'tramp)
+(require 'transient)
+(require 'xml)
+
 (defgroup colcon nil
   "Customization group for colcon."
   :group 'tools)
 
-(require 'xml)
-(require 'subr-x)  ;; For string-trim
-
 (defvar colcon--package-cache (make-hash-table :test 'equal)
   "Cache for package names, where keys are package.xml file paths and values are package names.")
+
+(defun colcon--get-ros-distros (path)
+  "Get available ROS distributions for the given PATH.
+PATH should be the root directory (e.g., / or /docker:dev:/)."
+  (let* ((ros-path (expand-file-name "opt/ros/" path))
+         (dirs (and (file-directory-p ros-path)
+                    (directory-files ros-path nil "^[^.]"))))
+    (or dirs
+        (error "No ROS distributions found in %s" ros-path))))
 
 (defun colcon--get-package-name (file)
   "Get the package name from the package.xml FILE, using cached value if available."
