@@ -1,4 +1,4 @@
-;;; colcon.el --- Emacs interface for colcon build tool -*- lexical-binding: t; -*-
+;;; colcon-build.el --- Emacs interface for colcon build tool -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2023 Your Name
 
