@@ -151,12 +151,38 @@ PATH is the root directory of the workspace."
                      (format "Packages: %s" (mapconcat #'identity colcon--selected-packages ", "))))
   :transient t)
 
+(transient-define-infix colcon--cmake-args-infix ()
+  "docs"
+  :class 'transient-option
+  :prompt "CMake arguments: ")
+
 (transient-define-argument colcon--packages-selection-infix ()
   "docs"
   :class 'transient-switches
-  :argument-format "--%s"
-  :argument-regexp "\\(--\\(packages-select\\|packages-up-to\\|packages-above\\)\\)"
-  :choices '("packages-select" "packages-up-to" "packages-above"))
+  :argument-format "--packages-%s"
+  :argument-regexp "\\(--packages-\\(select\\|up-to\\|above\\)\\)"
+  :choices '("select" "up-to" "above"))
+
+(transient-define-argument colcon--build-type-infix ()
+  "docs"
+  :class 'transient-switches
+  :argument-format "--cmake-args -DCMAKE_BUILD_TYPE=%s"
+  :argument-regexp "\\(--cmake-args -DCMAKE_BUILD_TYPE=\\(Release\\|RelWithDebInfo\\|Debug\\)\\)"
+  :choices '("Release" "RelWithDebInfo" "Debug"))
+
+(transient-define-argument colcon--build-tests-infix ()
+  "docs"
+  :class 'transient-switches
+  :argument-format "--cmake-args -DGRAVIS_BUILD_TESTS=%s"
+  :argument-regexp "\\(--cmake-args -DGRAVIS_BUILD_TESTS=\\(ON\\|OFF\\)\\)"
+  :choices '("ON" "OFF"))
+
+(transient-define-argument colcon--console-output-infix ()
+  "docs"
+  :class 'transient-switches
+  :argument-format "--event-handler console_%s"
+  :argument-regexp "\\(--event-handler console_\\(direct\\+\\|cohesion\\+\\)\\)"
+  :choices '("direct+" "cohesion+"))
 
 (defun colcon--parse-package-selection-infix (args)
   ""
@@ -166,39 +192,75 @@ PATH is the root directory of the workspace."
     (cond ((transient-arg-value select args) select)
           ((transient-arg-value up-to args)  up-to)
           ((transient-arg-value above args)  above)
-          (t ""))))
+          (t nil))))
 
 (transient-define-suffix colcon--build-suffix (&optional args)
-  "Execute colcon build with the given ARGS."
+  "Execute colcon build."
   :description "Build"
   :transient nil
-  (interactive)
+  (interactive (list (transient-args transient-current-command)))
+  (transient-set)
   (let* ((default-directory (plist-get colcon--current-workspace :path))
          (distro-path  (file-name-concat "/opt/ros" (plist-get colcon--current-workspace :distro)))
          (distro-setup (file-name-concat distro-path "setup.bash"))
          (packages     (mapconcat 'identity colcon--selected-packages " "))
-         (infix-args   (transient-args transient-current-command))
-         (dependencies (colcon--parse-package-selection-infix infix-args))
+         (dependencies (colcon--parse-package-selection-infix args))
+         (args-wo-deps (remove dependencies args))
          (colcon-cmd   (concat "source " distro-setup " && "
-                               "colcon build " dependencies " " packages)))
+                               "source " "/home/dev_ws/install/setup.bash" " && "
+                               "colcon build " (mapconcat 'identity args-wo-deps " ") " " dependencies " " packages)))
     (if (and colcon--current-workspace colcon--selected-packages)
         (progn
           (message "Command: %s" colcon-cmd)
           ;; (message "Building packages %s in workspace: %s" (mapconcat 'identity colcon--selected-packages ", ") (plist-get colcon--current-workspace :path))
-          ;; (compile colcon-cmd))
-          )
+          (compile colcon-cmd))
     (user-error "No active workspace or no selected packages."))))
+
+(defun colcon--clean-packages (packages)
+  ""
+  (let ((default-directory (plist-get colcon--current-workspace :path)))
+    (dolist (package packages)
+      (delete-directory (file-name-concat "install" package) t t)
+      (delete-directory (file-name-concat "build"   package) t t))))
+
+(transient-define-suffix colcon--clean-suffix ()
+  "Clean suffix"
+  :description "Clean"
+  :transient nil
+  (interactive)
+  (transient-set)
+  (let* ((default-directory (plist-get colcon--current-workspace :path))
+         (infix-args   (transient-args transient-current-command))
+         (dependencies (colcon--parse-package-selection-infix infix-args)))
+    (if (and dependencies (not (string= dependencies "--packages-select")))
+        (let* ((selected-packages (mapconcat 'identity colcon--selected-packages " "))
+               (colcon-list-cmd (concat "colcon list -n " dependencies " " selected-packages))
+               (packages (split-string (shell-command-to-string colcon-list-cmd) "\n")))
+          (colcon--clean-packages packages)
+          (message "Cleaned packages: %s" (mapconcat 'identity packages " ")))
+      (progn
+        (colcon--clean-packages colcon--selected-packages)
+        (message "Cleaned packages: %s" (mapconcat 'identity colcon--selected-packages " "))))))
 
 (transient-define-prefix colcon-build ()
   "Transient for colcon build command."
-  :value '("--packages-select")
+  :value '("--packages-select" "--event-handler console_direct+" "--cmake-args -DCMAKE_BUILD_TYPE=Release" "--cmake-args -DGRAVIS_BUILD_TESTS=ON")
   ["Workspace"
    ("w" "Active workspace" colcon--workspace-infix)]
   ["Packages"
    ("p" "Packages" colcon--packages-infix)
    ("d" "Dependencies" colcon--packages-selection-infix)]
+  ["Build options"
+   ("-b" "Build type" colcon--build-type-infix)
+   ("-t" "Build tests" colcon--build-tests-infix)
+   ;; ("-a" "CMake arguments" "--cmake-args " :class transient-option)
+   ("-j" "Threads" "--parallel-workers=" :reader transient-read-number-N+)
+   ("-c" "Clean first" "--cmake-clean-first")
+   ("-o" "Console output" colcon--console-output-infix)]
   ["Actions"
-   ("b" "Build" colcon--build-suffix)])
+   [("b" "Build" colcon--build-suffix)]
+   [("c" "Clean" colcon--clean-suffix)]
+   [("D" "Debug" tsc-suffix-print-args)]])
 
 (provide 'colcon)
 ;;; colcon.el ends here
