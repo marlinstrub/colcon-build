@@ -226,21 +226,24 @@ PATH is the root directory of the workspace."
     (if (and colcon--current-workspace colcon--selected-packages)
         (progn
           (message "Command: %s" colcon-cmd)
-          ;; (message "Building packages %s in workspace: %s" (mapconcat 'identity colcon--selected-packages ", ") (plist-get colcon--current-workspace :path))
           (compile colcon-cmd))
     (user-error "No active workspace or no selected packages."))))
 
 (defun colcon--clean-packages (packages)
   ""
-  (let ((default-directory (plist-get colcon--current-workspace :path)))
-    (dolist (package packages)
-      (delete-directory (file-name-concat "install" package) t t)
-      (delete-directory (file-name-concat "build"   package) t t))))
+  (let ((packages-str (mapconcat 'identity packages " ")))
+    (if (y-or-n-p (format "Do you want to clean these packages: %s" packages-str))
+        (let ((default-directory (plist-get colcon--current-workspace :path)))
+          (dolist (package packages)
+            (delete-directory (file-name-concat "install" package) t t)
+            (delete-directory (file-name-concat "build"   package) t t)
+            (message "Cleaned packages: %s" packages-str)))
+      (message "Not cleaning any packages."))))
 
 (transient-define-suffix colcon--clean-suffix ()
   "Clean suffix"
   :description "Clean"
-  :transient nil
+  :transient t
   (interactive)
   (transient-set)
   (let* ((default-directory (plist-get colcon--current-workspace :path))
@@ -250,11 +253,8 @@ PATH is the root directory of the workspace."
         (let* ((selected-packages (mapconcat 'identity colcon--selected-packages " "))
                (colcon-list-cmd (concat "colcon list -n " dependencies " " selected-packages))
                (packages (split-string (shell-command-to-string colcon-list-cmd) "\n")))
-          (colcon--clean-packages packages)
-          (message "Cleaned packages: %s" (mapconcat 'identity packages " ")))
-      (progn
-        (colcon--clean-packages colcon--selected-packages)
-        (message "Cleaned packages: %s" (mapconcat 'identity colcon--selected-packages " "))))))
+          (colcon--clean-packages packages))
+      (colcon--clean-packages colcon--selected-packages))))
 
 ;;;###autoload
 (transient-define-prefix colcon-build ()
