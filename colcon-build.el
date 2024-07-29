@@ -40,8 +40,22 @@
   "Customization group for colcon."
   :group 'tools)
 
+(defcustom colcon-workspaces nil
+  "List of known colcon workspaces.
+Each element is a plist with keys :name, :path, :distro, and optionally :extends."
+  :type '(repeat (plist :key-type symbol :value-type string))
+  :group 'colcon)
+
+(defvar colcon--current-workspace nil
+  "The currently selected workspace.")
+
+(defvar colcon--selected-packages nil
+  "The selected packages.")
+
 (defvar colcon--package-cache (make-hash-table :test 'equal)
   "Cache for package names, where keys are package.xml file paths and values are package names.")
+
+;;; Workspace management
 
 (defun colcon--get-ros-distros (path)
   "Get available ROS distributions for the given PATH.
@@ -82,18 +96,6 @@ PATH should be the root directory (e.g., / or /docker:dev:/)."
         (unless colcon--selected-packages (user-error "No packages selected")))
     (user-error "No workspace selected.")))
 
-(defcustom colcon-workspaces nil
-  "List of known colcon workspaces.
-Each element is a plist with keys :name, :path, :distro, and optionally :extends."
-  :type '(repeat (plist :key-type symbol :value-type string))
-  :group 'colcon)
-
-(defvar colcon--current-workspace nil
-  "The currently selected workspace.")
-
-(defvar colcon--selected-packages nil
-  "The selected packages.")
-
 (defun colcon-add-workspace (name path)
   "Add a new workspace to =colcon-workspaces'.
 NAME is a string to identify the workspace.
@@ -133,6 +135,31 @@ PATH is the root directory of the workspace."
         (cl-remove-if (lambda (ws) (string= (plist-get ws :name) name))
                       colcon-workspaces))
   (message "Removed workspace: %s" name))
+
+;;; Transient helpers
+
+(defun colcon--clean-packages (packages)
+  ""
+  (let ((packages-str (mapconcat 'identity packages " ")))
+    (if (y-or-n-p (format "Do you want to clean these packages: %s" packages-str))
+        (let ((default-directory (plist-get colcon--current-workspace :path)))
+          (dolist (package packages)
+            (delete-directory (file-name-concat "install" package) t t)
+            (delete-directory (file-name-concat "build"   package) t t)
+            (message "Cleaned packages: %s" packages-str)))
+      (message "Not cleaning any packages."))))
+
+(defun colcon--parse-package-selection-infix (args)
+  ""
+  (let ((select "--packages-select")
+        (up-to  "--packages-up-to")
+        (above  "--packages-above"))
+    (cond ((transient-arg-value select args) select)
+          ((transient-arg-value up-to args)  up-to)
+          ((transient-arg-value above args)  above)
+          (t nil))))
+
+;;; Transient infixes
 
 (transient-define-infix colcon--workspace-infix ()
   "Select a workspace from =colcon-workspaces'."
@@ -198,15 +225,7 @@ PATH is the root directory of the workspace."
   :argument-regexp "\\(--event-handler console_\\(direct\\+\\|cohesion\\+\\)\\)"
   :choices '("direct+" "cohesion+"))
 
-(defun colcon--parse-package-selection-infix (args)
-  ""
-  (let ((select "--packages-select")
-        (up-to  "--packages-up-to")
-        (above  "--packages-above"))
-    (cond ((transient-arg-value select args) select)
-          ((transient-arg-value up-to args)  up-to)
-          ((transient-arg-value above args)  above)
-          (t nil))))
+;;; Transient suffixes
 
 (transient-define-suffix colcon--build-suffix (&optional args)
   "Execute colcon build."
@@ -227,18 +246,7 @@ PATH is the root directory of the workspace."
         (progn
           (message "Command: %s" colcon-cmd)
           (compile colcon-cmd))
-    (user-error "No active workspace or no selected packages."))))
-
-(defun colcon--clean-packages (packages)
-  ""
-  (let ((packages-str (mapconcat 'identity packages " ")))
-    (if (y-or-n-p (format "Do you want to clean these packages: %s" packages-str))
-        (let ((default-directory (plist-get colcon--current-workspace :path)))
-          (dolist (package packages)
-            (delete-directory (file-name-concat "install" package) t t)
-            (delete-directory (file-name-concat "build"   package) t t)
-            (message "Cleaned packages: %s" packages-str)))
-      (message "Not cleaning any packages."))))
+      (user-error "No active workspace or no selected packages."))))
 
 (transient-define-suffix colcon--clean-suffix ()
   "Clean suffix"
@@ -255,6 +263,8 @@ PATH is the root directory of the workspace."
                (packages (split-string (shell-command-to-string colcon-list-cmd) "\n")))
           (colcon--clean-packages packages))
       (colcon--clean-packages colcon--selected-packages))))
+
+;;; Transient prefixes
 
 ;;;###autoload
 (transient-define-prefix colcon-build ()
