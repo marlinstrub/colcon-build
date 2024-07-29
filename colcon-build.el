@@ -138,6 +138,38 @@ PATH is the root directory of the workspace."
 
 ;;; Transient helpers
 
+(defun colcon--generate-source-commands (workspace)
+  "Generate source commands for WORKSPACE and its extended workspaces."
+  (let* ((distro (plist-get workspace :distro))
+         (distro-path (file-name-concat "/opt/ros" distro))
+         (distro-setup (file-name-concat distro-path "setup.bash"))
+         (extended-workspaces (plist-get workspace :extends))
+         (workspace-path (plist-get workspace :path))
+         (tramp-prefix (file-remote-p workspace-path))
+         (local-workspace-path (if tramp-prefix (file-remote-p workspace-path 'localname) workspace-path))
+         (workspace-setup (file-name-concat workspace-path "install/setup.bash"))
+         (local-workspace-setup (file-name-concat local-workspace-path "install/setup.bash"))
+         (commands (list (concat "source " distro-setup))))
+    ;; Add source commands for extended workspaces
+    (dolist (ext-ws extended-workspaces)
+      (let* ((ext-ws-data (cl-find-if (lambda (ws) (string= (plist-get ws :name) ext-ws)) colcon-workspaces))
+             (ext-ws-path (plist-get ext-ws-data :path))
+             (local-ext-ws-path (if tramp-prefix (file-remote-p ext-ws-path 'localname) ext-ws-path))
+             (ext-ws-setup (file-name-concat ext-ws-path "setup.bash"))
+             (ext-ws-install-setup (file-name-concat ext-ws-path "install/setup.bash"))
+             (local-ext-ws-setup (file-name-concat local-ext-ws-path "setup.bash"))
+             (local-ext-ws-install-setup (file-name-concat local-ext-ws-path "install/setup.bash")))
+        (cond
+         ((file-exists-p ext-ws-setup)
+          (push (concat "source " local-ext-ws-setup) commands))
+         ((file-exists-p ext-ws-install-setup)
+          (push (concat "source " local-ext-ws-install-setup) commands)))))
+    ;; Add source command for the current workspace if it exists
+    (when (file-exists-p workspace-setup)
+      (push (concat "source " local-workspace-setup) commands))
+    ;; Return the commands in reverse order (bottom-up)
+    (nreverse commands)))
+
 (defun colcon--clean-packages (packages)
   ""
   (let ((packages-str (mapconcat 'identity packages " ")))
@@ -234,14 +266,14 @@ PATH is the root directory of the workspace."
   (interactive (list (transient-args transient-current-command)))
   (transient-set)
   (let* ((default-directory (plist-get colcon--current-workspace :path))
-         (distro-path  (file-name-concat "/opt/ros" (plist-get colcon--current-workspace :distro)))
-         (distro-setup (file-name-concat distro-path "setup.bash"))
-         (packages     (mapconcat 'identity colcon--selected-packages " "))
-         (dependencies (colcon--parse-package-selection-infix args))
-         (args-wo-deps (remove dependencies args))
-         (colcon-cmd   (concat "source " distro-setup " && "
-                               "source " "/home/dev_ws/install/setup.bash" " && "
-                               "colcon build " (mapconcat 'identity args-wo-deps " ") " " dependencies " " packages)))
+         (source-commands (colcon--generate-source-commands colcon--current-workspace))
+         (packages (mapconcat 'identity colcon--selected-packages " "))
+         (dependency-selection (colcon--parse-package-selection-infix args))
+         (args-wo-deps (remove dependency-selection args))
+         (colcon-cmd (concat (mapconcat 'identity source-commands " && ")
+                             " && colcon build "
+                             (mapconcat 'identity args-wo-deps " ")
+                             " " dependency-selection " " packages)))
     (if (and colcon--current-workspace colcon--selected-packages)
         (progn
           (message "Command: %s" colcon-cmd)
