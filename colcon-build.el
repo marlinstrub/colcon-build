@@ -259,7 +259,7 @@ PATH is the root directory of the workspace."
 ;;;###autoload
 (transient-define-prefix colcon-build ()
   "Transient for colcon build command."
-  :value '("--packages-select" "--event-handler console_direct+" "--cmake-args -DCMAKE_BUILD_TYPE=Release" "--cmake-args -DGRAVIS_BUILD_TESTS=ON")
+  :value '("--packages-select" "--event-handler console_direct+" "--cmake-args -DCMAKE_BUILD_TYPE=Release")
   ["Workspace"
    ("w" "Active workspace" colcon--workspace-infix)]
   ["Packages"
@@ -267,7 +267,7 @@ PATH is the root directory of the workspace."
    ("d" "Dependencies" colcon--packages-selection-infix)]
   ["Build options"
    ("-b" "Build type" colcon--build-type-infix)
-   ("-t" "Build tests" colcon--build-tests-infix)
+   ;; ("-t" "Build tests" colcon--build-tests-infix)
    ;; ("-a" "CMake arguments" "--cmake-args " :class transient-option)
    ("-j" "Threads" "--parallel-workers=" :reader transient-read-number-N+)
    ("-c" "Clean first" "--cmake-clean-first")
