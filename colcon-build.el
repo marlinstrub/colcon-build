@@ -224,11 +224,6 @@ PATH is the root directory of the workspace."
                      (format "Packages: %s" (mapconcat #'identity colcon--selected-packages ", "))))
   :transient t)
 
-(transient-define-infix colcon--cmake-args-infix ()
-  "docs"
-  :class 'transient-option
-  :prompt "CMake arguments: ")
-
 (transient-define-argument colcon--packages-selection-infix ()
   "docs"
   :class 'transient-switches
@@ -236,19 +231,12 @@ PATH is the root directory of the workspace."
   :argument-regexp "\\(--packages-\\(select\\|up-to\\|above\\)\\)"
   :choices '("select" "up-to" "above"))
 
-(transient-define-argument colcon--build-type-infix ()
+(transient-define-argument colcon--cmake-preset-infix ()
   "docs"
   :class 'transient-switches
-  :argument-format "--cmake-args -DCMAKE_BUILD_TYPE=%s"
-  :argument-regexp "\\(--cmake-args -DCMAKE_BUILD_TYPE=\\(Release\\|RelWithDebInfo\\|Debug\\)\\)"
-  :choices '("Release" "RelWithDebInfo" "Debug"))
-
-(transient-define-argument colcon--build-tests-infix ()
-  "docs"
-  :class 'transient-switches
-  :argument-format "--cmake-args -DGRAVIS_BUILD_TESTS=%s"
-  :argument-regexp "\\(--cmake-args -DGRAVIS_BUILD_TESTS=\\(ON\\|OFF\\)\\)"
-  :choices '("ON" "OFF"))
+  :argument-format "--cmake-args --preset %s"
+  :argument-regexp "\\(--cmake-args --preset \\(default\\)\\)"
+  :choices '("default"))
 
 (transient-define-argument colcon--console-output-infix ()
   "docs"
@@ -301,18 +289,16 @@ PATH is the root directory of the workspace."
 ;;;###autoload
 (transient-define-prefix colcon-build ()
   "Transient for colcon build command."
-  :value '("--packages-select" "--event-handler console_direct+" "--cmake-args -DCMAKE_BUILD_TYPE=Release")
+  :value '("--packages-select" "--event-handler console_cohesion+" "--cmake-args --preset default" "--parallel-workers=18")
   ["Workspace"
    ("w" "Active workspace" colcon--workspace-infix)]
   ["Packages"
    ("p" "Packages" colcon--packages-infix)
    ("d" "Dependencies" colcon--packages-selection-infix)]
   ["Build options"
-   ("-b" "Build type" colcon--build-type-infix)
-   ;; ("-t" "Build tests" colcon--build-tests-infix)
-   ;; ("-a" "CMake arguments" "--cmake-args " :class transient-option)
+   ("-p" "CMake preset" colcon--cmake-preset-infix)
+   ("-c" "Clean cache" "--cmake-clean-cache")
    ("-j" "Threads" "--parallel-workers=" :reader transient-read-number-N+)
-   ("-c" "Clean first" "--cmake-clean-first")
    ("-o" "Console output" colcon--console-output-infix)]
   ["Actions"
    [("b" "Build" colcon--build-suffix)]
